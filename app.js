@@ -4,6 +4,24 @@ const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const morgan = require("morgan");
+
+// aby req.ip na Renderu bralo IP z proxy (jinak uvidíš jen proxy IP)
+app.set("trust proxy", true);
+
+// access log do stdout -> uvidíš v Render Logs
+app.use(
+  morgan((tokens, req, res) => {
+    return JSON.stringify({
+      time: new Date().toISOString(),
+      ip: req.ip,
+      method: tokens.method(req, res),
+      url: tokens.url(req, res),
+      status: Number(tokens.status(req, res)),
+      ms: Number(tokens["response-time"](req, res))
+    });
+  })
+);
 
 // ---- Nastavení ankety (klidně změň otázku a odpovědi) ----
 const POLL = {
@@ -20,7 +38,7 @@ const RESET_TOKEN = process.env.RESET_TOKEN || "tajny-token-123";
 
 // SEM DOPLŇ svůj odkaz na GitHub Issues (až budeš mít repo)
 const GITHUB_ISSUES_URL =
-  process.env.ISSUES_URL || "https://github.com/TVUJ_UCET/TVUJE_REPO/issues";
+  process.env.ISSUES_URL || "https://github.com/ziki123456/anketa-render/issues";
 
 // Soubor s hlasy (sdílené pro všechny uživatele, drží po refreshi stránky)
 const DATA_DIR = path.join(__dirname, "data");
@@ -136,6 +154,26 @@ app.get("/", (req, res) => {
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html);
+});
+
+app.get("/search", (req, res) => {
+  const q = req.query.q || "";
+
+  // schválně to escapujeme, aby to nebylo XSS zranitelné
+  const safe = escapeHtml(q);
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`
+    <!doctype html>
+    <html lang="cs">
+    <head><meta charset="utf-8"><title>Search</title></head>
+    <body>
+      <h1>Search</h1>
+      <p>q = <code>${safe}</code></p>
+      <p><a href="/">Zpět</a></p>
+    </body>
+    </html>
+  `);
 });
 
 // Uloží hlas a přesměruje na výsledky
