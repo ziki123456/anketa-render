@@ -3,22 +3,26 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// ---- Nastavení ankety (změň si otázku a odpovědi klidně) ----
+// ---- Nastavení ankety (klidně změň otázku a odpovědi) ----
 const POLL = {
   question: "Kolik otevřených záložek je ještě normální?",
   options: [
-    { id: "A", text: "1–5" },
-    { id: "B", text: "6–15" },
-    { id: "C", text: "16+" }
+    { id: "A", text: "1–5 (mám to pod kontrolou)" },
+    { id: "B", text: "6–15 (pracovní režim)" },
+    { id: "C", text: "16+ (to už je životní styl)" }
   ]
 };
 
 // Token pro reset (může být natvrdo nebo z env proměnné)
 const RESET_TOKEN = process.env.RESET_TOKEN || "tajny-token-123";
 
-// Soubor s hlasy (sdílené pro všechny uživatele, drží po refreshi)
+// SEM DOPLŇ svůj odkaz na GitHub Issues (až budeš mít repo)
+const GITHUB_ISSUES_URL =
+  process.env.ISSUES_URL || "https://github.com/TVUJ_UCET/TVUJE_REPO/issues";
+
+// Soubor s hlasy (sdílené pro všechny uživatele, drží po refreshi stránky)
 const DATA_DIR = path.join(__dirname, "data");
 const VOTES_FILE = path.join(DATA_DIR, "votes.json");
 
@@ -43,13 +47,11 @@ function loadVotes() {
     const raw = fs.readFileSync(VOTES_FILE, "utf-8");
     const obj = JSON.parse(raw);
 
-    // doplnění chybějících klíčů, kdyby někdo změnil options
     for (const opt of POLL.options) {
       if (typeof obj[opt.id] !== "number") obj[opt.id] = 0;
     }
     return obj;
   } catch (e) {
-    // když je soubor rozbitý, uděláme nový
     const reset = {};
     for (const opt of POLL.options) reset[opt.id] = 0;
     fs.writeFileSync(VOTES_FILE, JSON.stringify(reset, null, 2), "utf-8");
@@ -70,6 +72,16 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+function navLinksHtml() {
+  return `
+  <nav>
+    <a href="/">Hlasování</a> |
+    <a href="/results">Výsledky</a> |
+    <a href="/about">O anketě</a>
+  </nav>
+  `.trim();
+}
+
 // ---- Middleware ----
 app.use(express.urlencoded({ extended: false }));
 
@@ -87,6 +99,9 @@ app.get("/", (req, res) => {
 </head>
 <body>
   <h1>Anketa</h1>
+  ${navLinksHtml()}
+  <hr>
+
   <p><strong>${escapeHtml(POLL.question)}</strong></p>
 
   <form method="post" action="/vote">
@@ -105,11 +120,10 @@ app.get("/", (req, res) => {
     <button type="submit">Hlasovat</button>
   </form>
 
-  <p><a href="/results">Zobrazit výsledky</a></p>
-
   <hr>
 
   <h2>Reset hlasování</h2>
+  <p>Reset je schválně chráněný tokenem, aby to nemohl smazat kdokoli.</p>
   <form method="post" action="/reset">
     <label>Token:
       <input type="password" name="token" required>
@@ -162,6 +176,9 @@ app.get("/results", (req, res) => {
 </head>
 <body>
   <h1>Výsledky</h1>
+  ${navLinksHtml()}
+  <hr>
+
   <p><strong>${escapeHtml(POLL.question)}</strong></p>
 
   <ul>
@@ -169,6 +186,49 @@ app.get("/results", (req, res) => {
   </ul>
 
   <p><a href="/">Zpět na hlasování</a></p>
+</body>
+</html>
+  `.trim();
+
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
+});
+
+// Stránka O anketě
+app.get("/about", (req, res) => {
+  const html = `
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>O anketě</title>
+</head>
+<body>
+  <h1>O anketě</h1>
+  ${navLinksHtml()}
+  <hr>
+
+  <p>
+    Tahle mini anketa vznikla jako jednoduchý webový projekt na téma hlasování.
+    Otázka je schválně trochu „ze života“: záložky v prohlížeči jsou dneska skoro jako druhá paměť.
+  </p>
+
+  <p>
+    Hlasuje se jen jednou volbou a výsledky se průběžně sčítají pro všechny návštěvníky.
+    Reset je chráněný tokenem, aby někdo nemohl výsledky jen tak vynulovat.
+  </p>
+
+  <h2>Nahlášení chyby</h2>
+  <p>
+    Pokud najdeš chybu (technickou nebo třeba překlep), napiš ji prosím do GitHub Issues:
+    <a href="${escapeHtml(GITHUB_ISSUES_URL)}" target="_blank" rel="noreferrer">Otevřít stránku Issues</a>
+  </p>
+
+  <p>
+    Do hlášení napiš: co přesně nefunguje, na jaké stránce (URL) a co jsi dělal předtím.
+    Když přidáš screenshot, je to nejlepší.
+  </p>
 </body>
 </html>
   `.trim();
